@@ -8,7 +8,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
-#include <check.h>
 
 #include "pool_alloc.h"
 
