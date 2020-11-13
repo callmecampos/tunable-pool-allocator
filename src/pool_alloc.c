@@ -10,61 +10,48 @@
 
 #include "pool_alloc.h"
 
-// 8 byte struct assuming 8-byte addressing
-typedef struct block_header {
-    struct block_header* next;
-} block_header_t;
-
-// 16 byte struct assuming 8-byte addressing
-typedef struct {
-    uint16_t size;
-    block_header_t* next_free;
-} pool_header_t;
-
-#define MAX_BLOCK_SIZES 248
-
 static uint8_t g_pool_heap[65536];
-int pool_size;
-int num_pools;
-int word_size;
-uint8_t* base_addr;
-bool initialized = false; // TODO: check that this works as you expect? it honestly should lol
-
-// ================ FUNCTION DECLARATIONS ==================
-
-pool_header_t* find_pool_from_size(size_t n);
-pool_header_t* find_pool_from_pointer(void* ptr);
-size_t aligned(size_t n);
+static uint8_t* base_addr;
+static int num_pools;
+static int pool_size;
+static int word_size;
+static bool initialized = false;
 
 // ============ TUNABLE BLOCK POOL ALLOCATOR ===============
 
 bool pool_init(const size_t* block_sizes, size_t block_size_count)
 {
-    if (block_size_count <= 0 || block_size_count > MAX_BLOCK_SIZES) {
+    if (initialized) {
         return false;
     }
 
-    num_pools = (int) block_size_count;
-    pool_size = sizeof(g_pool_heap) / num_pools - sizeof(pool_header_t);
-    base_addr = g_pool_heap + (num_pools * sizeof(pool_header_t));
-    word_size = (int) sizeof(void*);
+    // Make sure we have a valid number of block sizes
+    if (block_size_count <= 0 || block_size_count > MAX_NUM_POOLS) {
+        return false;
+    }
 
+    // Initialize static global variables
+    num_pools = (int) block_size_count;
+
+    pool_size = (sizeof(g_pool_heap) / num_pools) - sizeof(pool_header_t);
+    word_size = sizeof(void*);
+    base_addr = g_pool_heap + (num_pools * sizeof(pool_header_t));
+
+    // Populate the heap with pool headers, pools, and block headers inside of those pools
     for (int i = 0; i < num_pools; i++) {
         size_t block_size = aligned(block_sizes[i]); // byte alignment
         if (block_size == 0 || block_size > pool_size) {
-            initialized = false;
             return false;
         }
 
         int num_blocks = pool_size / block_size;
 
+        // Create a pool header for this block size and point it to the pool's first free block
         pool_header_t *hptr = (pool_header_t*) (g_pool_heap + (i * pool_size));
         hptr->size = (uint16_t) block_size;
         hptr->next_free = (block_header_t*) (base_addr + (i * pool_size));
 
-        // iterate through rest of blocks, updating their block headers
-        // you may not need to do this since they're equidistant
-        // could store the inverse, list of used blocks? might complicate things though
+        // Populate every block in the pool with a block header (this gets overwritten on allocation)
         block_header_t *last = NULL;
         for (int offset = 0; offset < num_blocks * block_size; offset += block_size) {
             block_header_t *bptr = (block_header_t*) (((uint8_t *) hptr->next_free) + offset);
@@ -87,22 +74,18 @@ void* pool_alloc(size_t n)
         return NULL;
     }
 
-    // find the corresponding pool to allocate memory in
-
+    // Find the corresponding pool to allocate memory in
     pool_header_t* pool = find_pool_from_size(n);
     if (pool == NULL) {
-        printf("Hella fucked.\n");
         return NULL;
     }
 
-    // find a free block
-
+    // Find an available free block in O(1) time
     block_header_t* free_block = pool->next_free;
-
     if (free_block == NULL) {
-        // TODO: no free memory left, check higher pool header??
+        // TODO: no free memory left [first check overflow external fragmentation space?] check higher pool header??
         // just increment pool_header pointer until you reach base_addr and return NULL if so
-        // likely want this to be a subroutine, make code look clean
+        // likely want this to be a subroutine, make code look clean, and *make sure to update relevant pool*
         return NULL;
     }
 
@@ -124,31 +107,27 @@ void pool_free(void* ptr)
         return; // this should really never return null unless it's an invalid pointer
     }
 
-    printf("Successfully freed.");
+    printf("Successfully freed.\n"); // FIXME: have debugging flag (printf macro?)
 
     block_header_t *bptr = ptr;
     bptr->next = pool->next_free;
     pool->next_free = bptr;
 }
 
-// ============= HELPER =============
+// ============= HELPER FUNCTIONS =============
 
-pool_header_t* get_pool(int i) {
-    pool_header_t *hptr = (pool_header_t*) (g_pool_heap + (i * pool_size));
-    return hptr;
+inline pool_header_t* get_pool(int i) {
+    return (pool_header_t*) (g_pool_heap + (i * pool_size));;
 }
 
 pool_header_t* find_pool_from_size(size_t _n) {
-    uint16_t n = (uint16_t) aligned(_n);
-    // binary search through headers to find start position: O(log(N)) runtime for N pools
+    size_t n = aligned(_n);
+
     int start = 0, end = num_pools - 1;
     int middle = (start + end) / 2;
 
-    printf("start %d end %d middle %d\n", start, end, middle);
-
     while (start < end) {
         pool_header_t *pool = get_pool(middle);
-        printf("pool size %d n %d\n", pool->size, n);
         if (pool->size < n) {
             start = middle + 1;
         } else if (pool->size == n) {
@@ -158,10 +137,10 @@ pool_header_t* find_pool_from_size(size_t _n) {
         }
 
         middle = (start + end) / 2;
-        printf("start %d end %d middle %d\n", start, end, middle);
     }
 
-    return NULL; // TODO: implement me
+    printf("Failed to find pool from size %zu.", _n);
+    return NULL;
 }
 
 pool_header_t* find_pool_from_pointer(void* ptr) {
@@ -176,7 +155,7 @@ pool_header_t* find_pool_from_pointer(void* ptr) {
 // ============= UTILS ==============
 
 inline size_t aligned(size_t n) {
-    return n + (word_size - n) % word_size; // hm should probably do this bitwise, could quantify difference later lol
+    return BYTE_ALIGNMENT ? n + (word_size - n) % word_size : n; // hm should probably do this bitwise, could quantify difference later lol
 }
 
 /**
