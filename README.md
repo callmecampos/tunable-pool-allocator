@@ -9,7 +9,8 @@ Assumptions:
 1. Heap itself can be used to store state.
 2. Even subdivision of heap (divide evenly by number of pools e.g. 4 block sizes each get the same amount of heap space, giving smaller objects more blocks to allocate into).
     a. Can also enable reasonable subdivision of heap (e.g. larger objects get larger pools, smaller objects get smaller pools).
-3. 7. The block sizes array is pre-sorted smallest to largest.
+3. The block sizes array is passed in pre-sorted smallest to largest.
+    a. This assumption was made to accomodate O(log(N)) search for pool headers.
 4. No duplicate block sizes are passed into the pool initialization function.
 5. No individual block size exceeds its respective allocated pool size.
     a. Following from this, it is assumed that no individual block size exceeds 2^16 - 16 = 65520 to allow for pool header space.
