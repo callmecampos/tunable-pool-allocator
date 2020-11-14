@@ -336,7 +336,7 @@ START_TEST(alloc_fill_pool_small_blocks)
     // Allocate the last one
     uint8_t *last_ptr = pool_alloc(32);
     ck_assert_ptr_nonnull(last_ptr);
-    
+
     // Can't allocate new memory there
     ck_assert_ptr_null(pool_alloc(32));
 
@@ -584,8 +584,8 @@ START_TEST(alloc_varied_sizes)
 
     // Allocation to 4096-byte blocks
     ck_assert_ptr_nonnull(pool_alloc(4096)); // 1
-    ck_assert_ptr_nonnull(pool_alloc(64)); // 2
-    ck_assert_ptr_nonnull(pool_alloc(512)); // 3
+    ck_assert_ptr_nonnull(pool_alloc(64));   // 2
+    ck_assert_ptr_nonnull(pool_alloc(512));  // 3
 
     // Unsuccessful allocation of invalid sizes
     ck_assert_ptr_null(pool_alloc(8192));
@@ -604,8 +604,8 @@ START_TEST(alloc_varied_sizes)
     }
 
     // Allocation of last available 4096-byte blocks
-    ck_assert_ptr_nonnull(pool_alloc(512)); // 5
-    ck_assert_ptr_nonnull(pool_alloc(512)); // 6
+    ck_assert_ptr_nonnull(pool_alloc(512));  // 5
+    ck_assert_ptr_nonnull(pool_alloc(512));  // 6
     ck_assert_ptr_nonnull(pool_alloc(3675)); // 7
 
     // None left

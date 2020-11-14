@@ -1,15 +1,19 @@
 /**
  * Tunable block pool allocator header file.
  * 
- * Assumptions:
- * 1. pool_init() can only be called once per process.
- * 2. Heap itself can and should be used to store state.
- * 3. Heap is subdivided evenly by number of pools, giving smaller objects more blocks to allocate into.
- * 4. The block sizes array is provided pre-sorted smallest to largest.
- *     i. This assumption accomodates O(log(N)) search for pool headers without having to sort the array during initialization.
- * 5. No duplicate block sizes are passed into the pool initialization function.
- * 6. No individual block size exceeds its respective allocated pool size.
- * 7. The number of pools doesn't exceed 248.
+ * Three assumptions about the user are made which influence the design of the block pool memory allocator.
+ * 1. The user prefers smaller block size allocation and therefore allocates memory for such objects more often.
+ * 2. Memory allocations of the similar type/size often happen repeatedly in succession.
+ * 3. The user values minimized fragmentation and exceedingly low resource use (memory & computational footprint).
+ * 
+ * High level design decisions:
+ * 1. Heap itself can and should be used to store state.
+ * 2. Heap is subdivided evenly by number of pools, giving smaller objects more blocks to allocate into.
+ * 3. At the beginning of the heap, we hold 16-byte headers identifying pool block size and pointing to first
+ * available free block in that pool (NULL if no free blocks are available).
+ * 4. There is no header/metadata overhead for allocated blocks, we can simply store a free list where each
+ * free block holds a pointer to the next free block. This pointer is simply overwritten when the block is allocated,
+ * and restored on pool_free().
  * 
  * Written by Felipe Campos, 11/12/2020.
  */
@@ -55,6 +59,10 @@ typedef struct pool_header
  * Initialize the pool allocator with a set of block sizes appropriate for this application.
  * Returns true on success, false on failure.
  *
+ * Notes:
+ * 1. This may only be called once per process.
+ * 2. `block_size_count` doesn't exceed 248.
+ * 3. `size_t *block_sizes` is pre-sorted and contains no duplicate elements.
  */
 bool pool_init(const size_t *block_sizes, size_t block_size_count);
 

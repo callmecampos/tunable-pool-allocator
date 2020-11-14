@@ -53,6 +53,7 @@ bool pool_init(const size_t *block_sizes, size_t block_size_count)
         last_block_size = block_size;
     }
 
+    last_used_pool = get_pool(0);
     initialized = true;
     return true;
 }
@@ -137,23 +138,31 @@ static pool_header_t *find_pool_from_size(size_t n)
     int middle = (start + end) / 2;
     pool_header_t *pool = NULL;
 
-    while (start <= end)
+    if (n == last_used_pool->block_size)
     {
-        pool = get_pool(middle);
-        if (pool->block_size < n)
+        pool = last_used_pool;
+        middle = get_pool_index(pool);
+    }
+    else
+    {
+        while (start <= end)
         {
-            start = middle + 1;
-        }
-        else if (pool->block_size == n)
-        {
-            break;
-        }
-        else
-        {
-            end = middle - 1;
-        }
+            pool = get_pool(middle);
+            if (pool->block_size < n)
+            {
+                start = middle + 1;
+            }
+            else if (pool->block_size == n)
+            {
+                break;
+            }
+            else
+            {
+                end = middle - 1;
+            }
 
-        middle = (start + end) / 2;
+            middle = (start + end) / 2;
+        }
     }
 
     // Check out larger block size pools if the current has no free space
@@ -169,6 +178,7 @@ static pool_header_t *find_pool_from_size(size_t n)
         pool = get_pool(middle);
     }
 
+    last_used_pool = pool;
     return pool;
 }
 
