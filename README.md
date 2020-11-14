@@ -58,15 +58,21 @@ N = total number of blocks (up to 8190)
 ```
 
 `pool_init`
+
 Time - O(b + N)
+
 Space - O(b + N)
 
 `pool_alloc`:
+
 Time - Best Case (Cache Hit): O(1), Average Case (Binary Search): O(log(b)), Worst Case (All Pools Full): O(b)
+
 Space - Best Case (Cache Hit): O(1), Average Case: O(b)
 
 `pool_free`:
+
 Time - O(1)
+
 Space - O(1)
 
 #### Further Future Optimizations

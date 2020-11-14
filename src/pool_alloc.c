@@ -16,6 +16,7 @@ static int num_pools;
 static int pool_size;
 static int word_size;
 static bool initialized = false;
+static pool_header_t *last_used_pool;
 
 // ============ TUNABLE BLOCK POOL ALLOCATOR ===============
 
@@ -28,10 +29,9 @@ bool pool_init(const size_t *block_sizes, size_t block_size_count)
     }
 
     // Initialize static global variables
-    num_pools = (int)block_size_count;
-
-    pool_size = (sizeof(g_pool_heap) / num_pools) - sizeof(pool_header_t);
     word_size = sizeof(void *);
+    num_pools = (int)block_size_count;
+    pool_size = align((sizeof(g_pool_heap) / num_pools) - sizeof(pool_header_t));
     base_addr = g_pool_heap + (num_pools * sizeof(pool_header_t));
 
     // Populate the heap with pool headers, pools, and block headers inside of those pools
@@ -39,7 +39,7 @@ bool pool_init(const size_t *block_sizes, size_t block_size_count)
     for (int i = 0; i < num_pools; i++)
     {
         size_t block_size = block_sizes[i];
-        if (block_size <= last_block_size || block_size == 0 || aligned(block_size, word_size) > pool_size)
+        if (block_size <= last_block_size || block_size == 0 || align(block_size) > pool_size)
         {
             return false;
         }
@@ -100,34 +100,20 @@ void pool_free(void *ptr)
 
 // ============= HELPER FUNCTIONS =============
 
-inline size_t aligned(size_t n, size_t align)
-{
-    return (n + align - 1) & ~(align - 1);
-}
-
-inline pool_header_t *get_pool(int i)
-{
-    return (pool_header_t *)(g_pool_heap + (i * sizeof(pool_header_t)));
-}
-
-int get_pool_index(pool_header_t *pool)
-{
-    return ((intptr_t) (((uint8_t *) pool) - g_pool_heap)) / sizeof(pool_header_t);
-}
-
-pool_header_t *create_pool_header(size_t block_size, int i)
+static pool_header_t *create_pool_header(size_t block_size, int i)
 {
     pool_header_t *pool = get_pool(i);
     pool->block_size = block_size;
-    pool->next_free = (block_header_t *)(base_addr + aligned(i * pool_size, word_size));
+    pool->next_free = (block_header_t *)(base_addr + (i * pool_size));
     return pool;
 }
 
-block_header_t *populate_block_headers(pool_header_t *pool)
+static block_header_t *populate_block_headers(pool_header_t *pool)
 {
+    size_t aligned_block_size = align(pool->block_size);
+
     block_header_t *last = NULL;
-    size_t aligned_block_size = aligned(pool->block_size, word_size);
-    for (size_t offset = 0; offset + aligned_block_size < pool_size; offset += aligned_block_size)
+    for (size_t offset = 0; offset + aligned_block_size <= pool_size; offset += aligned_block_size)
     {
         block_header_t *bptr = (block_header_t *)(((uint8_t *)pool->next_free) + offset);
         if (last != NULL)
@@ -145,7 +131,7 @@ block_header_t *populate_block_headers(pool_header_t *pool)
     return last;
 }
 
-pool_header_t *find_pool_from_size(size_t n)
+static pool_header_t *find_pool_from_size(size_t n)
 {
     int start = 0, end = num_pools - 1;
     int middle = (start + end) / 2;
@@ -170,6 +156,7 @@ pool_header_t *find_pool_from_size(size_t n)
         middle = (start + end) / 2;
     }
 
+    // Check out larger block size pools if the current has no free space
     pool = get_pool(middle);
     while (n > pool->block_size || pool->next_free == NULL)
     {
@@ -185,7 +172,7 @@ pool_header_t *find_pool_from_size(size_t n)
     return pool;
 }
 
-pool_header_t *find_pool_from_pointer(void *ptr)
+static pool_header_t *find_pool_from_pointer(void *ptr)
 {
     int pool_index = (((uint8_t *)ptr) - base_addr) / pool_size;
     if (pool_index >= 0 && pool_index < num_pools)
@@ -194,6 +181,21 @@ pool_header_t *find_pool_from_pointer(void *ptr)
     }
 
     return NULL;
+}
+
+static inline pool_header_t *get_pool(int i)
+{
+    return (pool_header_t *)(g_pool_heap + (i * sizeof(pool_header_t)));
+}
+
+static int get_pool_index(pool_header_t *pool)
+{
+    return ((uintptr_t)(((uint8_t *)pool) - g_pool_heap)) / sizeof(pool_header_t);
+}
+
+inline size_t align(size_t n)
+{
+    return aligned(n, word_size);
 }
 
 // ============= DEBUG UTILS ==============
