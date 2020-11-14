@@ -1,6 +1,16 @@
 /**
  * Tunable block pool allocator header file.
  * 
+ * Assumptions:
+ * 1. pool_init() is called only once per process.
+ * 2. Heap itself can be used to store state.
+ * 3. Heap is subdivided evenly by number of pools, giving smaller objects more blocks to allocate into.
+ * 4. The block sizes array is provided pre-sorted smallest to largest.
+ *     i. This assumption accomodates O(log(N)) search for pool headers without having to sort the array during initialization.
+ * 5. No duplicate block sizes are passed into the pool initialization function.
+ * 6. No individual block size exceeds its respective allocated pool size.
+ * 7. The number of block sizes doesn't exceed 248.
+ * 
  * Written by Felipe Campos, 11/12/2020.
  */
 
@@ -14,8 +24,8 @@
 // =================== DEFINITIONS =====================
 
 #define MAX_NUM_POOLS 248
-#define HEAP_SIZE_BYTES 1 << 16
-#define FRAGMENT_OVERFLOW false
+#define HEAP_SIZE_BYTES 65536
+#define HEAP_SIZE_BYTES_BUF 65536 - 8
 
 /**
  * Header struct occupying a freed block, pointing to the next
@@ -37,7 +47,7 @@ typedef struct block_header
 typedef struct pool_header
 {
     size_t block_size;
-    block_header_t *next_free; // don't need to store an entire 8 byte address, may only need 2 and helper function
+    block_header_t *next_free; // don't need to store an entire 8 byte address, only need 2 and compute from base address
 } pool_header_t;
 
 // ============ TUNABLE BLOCK POOL ALLOCATOR ===============
@@ -45,16 +55,6 @@ typedef struct pool_header
 /**
  * Initialize the pool allocator with a set of block sizes appropriate for this application.
  * Returns true on success, false on failure.
- * 
- * Assumptions:
- * 1. pool_init() is called only once per process.
- * 2. Heap itself can be used to store state.
- * 3. Heap is subdivided evenly by number of pools, giving smaller objects more blocks to allocate into.
- * 4. The block sizes array is provided pre-sorted smallest to largest.
- *     i. This assumption accomodates O(log(N)) search for pool headers without having to sort the array during initialization.
- * 5. No duplicate block sizes are passed into the pool initialization function.
- * 6. No individual block size exceeds its respective allocated pool size.
- * 7. The number of block sizes doesn't exceed 248.
  *
  */
 bool pool_init(const size_t *block_sizes, size_t block_size_count);
@@ -78,9 +78,14 @@ void pool_free(void *ptr);
 // ================ HELPER FUNCTIONS ==================
 
 /**
- * Gets the header corresponding to the ith pool size.
+ * Gets the pool header corresponding to the ith block size.
  */
 pool_header_t *get_pool(int i);
+
+/**
+ * Gets the block size index corresponding to the pool header.
+ */
+int get_pool_index(pool_header_t *pool);
 
 /**
  * Create a pool header for the ith block size and point it to the pool's first free block.
@@ -92,11 +97,6 @@ pool_header_t *create_pool_header(size_t block_size, int i);
  * Returns the last block visited in the pool.
  */
 block_header_t *populate_block_headers(pool_header_t *pool);
-
-/**
- * Populate the fragment overflow of future pools with size block_sizes[i] blocks.
- */
-void populate_fragment_overflow(block_header_t *last_block, const size_t *block_sizes, int i);
 
 /**
  * Binary search throuogh the pool headers to find the relevant pool.
@@ -117,6 +117,6 @@ pool_header_t *find_pool_from_pointer(void *ptr);
  * 
  * Example (64-bit system): aligned(4) = 8; aligned(16) = 16; aligned(18) = 24;
  */
-size_t aligned(size_t n);
+size_t aligned(size_t n, size_t word_size); // TODO: overload without word_size argument...
 
 #endif /* POOL_ALLOC_H */
