@@ -9,6 +9,11 @@
 
 // ========= VARIABLES & FUNCTION DECLARATIONS ==========
 
+#ifdef linux
+#define ck_assert_ptr_null(a) ((a) == NULL)
+#define ck_assert_ptr_nonnull(a) ((a) != NULL)
+#endif
+
 static uint8_t* fill_pool(size_t n);
 int pool_size_bytes(size_t num_pools);
 
@@ -202,7 +207,7 @@ END_TEST
  * Checking our allocation and freeing algorithm.
  * Each newly freed block should be first on the free list for that pool.
  */
-START_TEST(alloc_and_free_mirror_short)
+START_TEST(alloc_and_free_chain_short)
 {
     const size_t arr[] = {sizeof(int), 1024, 2048};
     bool pool = pool_init(arr, 3);
@@ -290,7 +295,7 @@ START_TEST(alloc_and_free_chain_long)
 
     int* p12 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p12);
-    ck_assert_ptr_eq(p11, p3);
+    ck_assert_ptr_eq(p12, p1);
 }
 END_TEST
 
@@ -608,7 +613,8 @@ Suite* pool_alloc_suite(void)
     tcase_add_test(tc_valid, alloc_check_relative_block);
     tcase_add_test(tc_valid, alloc_check_relative_pool);
     tcase_add_test(tc_valid, alloc_value);
-    tcase_add_test(tc_valid, alloc_and_free_mirror_short);
+    tcase_add_test(tc_valid, alloc_and_free_chain_short);
+    tcase_add_test(tc_valid, alloc_and_free_chain_long);
     suite_add_tcase(s, tc_valid);
 
     tc_overflow = tcase_create("Fill and overflow allocation.");

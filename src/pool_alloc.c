@@ -38,7 +38,7 @@ bool pool_init(const size_t* block_sizes, size_t block_size_count)
     base_addr = g_pool_heap + (num_pools * sizeof(pool_header_t));
     end_addr = g_pool_heap + HEAP_SIZE_BYTES;
 
-    // Populate the heap with pool headers and pools of blocks
+    // Populate the heap with pool headers and pools of free blocks
     size_t last_block_size = 0;
     for (int i = 0; i < num_pools; i++)
     {
@@ -140,9 +140,11 @@ static block_header_t* populate_block_headers(pool_header_t* pool)
          offset + aligned_block_size <= pool_size;
          offset += aligned_block_size)
     {
+        // Check to make sure we're not overflowing by allocating
+        // memory outside the heap.
         if (first_free + offset + aligned_block_size > end_addr)
         {
-            continue;
+            break;
         }
 
         block_header_t* bptr = (block_header_t*)(first_free + offset);
@@ -151,11 +153,6 @@ static block_header_t* populate_block_headers(pool_header_t* pool)
             last->next = bptr;
         }
         last = bptr;
-    }
-
-    if (last != NULL)
-    {
-        last->next = NULL;
     }
 
     return last;

@@ -1,8 +1,22 @@
-# Zipline Take-Home Challenge: Tunable Block Pool Allocator
+# Tunable Block Pool Allocator
 
-## How to compile and run: (on Unix-based OS, see [tests/CMakeLists.txt](tests/CMakeLists.txt) if on Windows)
+## How to compile and run: (on Unix-based OS)
 
-Using Autotools:
+Dependency installation:
+
+macOS:
+```
+brew install check
+brew install automake
+```
+
+Linux:
+```
+sudo apt-get install check
+sudo apt-get install autoconf
+```
+
+Using Autotools (recommended):
 ```
 autoreconf --install
 ./configure
@@ -32,9 +46,12 @@ Three assumptions about the user are made which influence the design of this blo
 
 ### Design decisions and tradeoffs:
 1. The heap itself can and should be used to store state.
-    1. **Tradeoff:** This ensures simplicity of the implementation. We do sacrifice a small memory footprint in the process, though it's negligible relative to the entire heap (e.g. for 64 pools, only ~1% of the total heap is used for pool headers situated at the start of the heap pointing to free blocks in their respective pools).
-1. The heap is subdivided evenly by number of pools, giving smaller objects more blocks to allocate into. Additionally, if a smaller block pool is full, new allocations for said block size may take up blocks in the next non-empty pool of greater block size. There is no coalescing of smaller blocks since those take priority, though neither is there any splitting of larger blocks.
-    1. **Tradeoff:** The tradeoff for these two logistical decisions is embedded in the user's preference for smaller block size allocation. Another tradeoff is that the latter decision increases internal fragmentation, and though we could split large blocks into smaller sub-blocks to mitigate this, that would incur an unnecessary computational and memory footprint.
+    1. Pool headers store block size and a pointer to the head block of the free list in that pool (NULL if none are free). Block headers make up the free lists in their respective pools, and simply store an address pointing to the next free block within the same pool.
+    1. **Tradeoff:** Storing state in the heap ensures simplicity of the implementation. We do sacrifice a small memory footprint by storing pool headers at the start of the heap, though it's negligible relative to the entire heap (e.g. for 64 pools, only ~1% of the total heap is used for pool headers).
+    1. Block headers, on the other hand, incur no additional memory footprint since we don't have to store the size of the allocated block in the header, and can store the header within the free block itself, allowing that memory to be overwritten on allocation.
+1. The heap is subdivided evenly by number of pools, giving smaller objects more blocks to allocate into.
+    1. Additionally, if a smaller block pool is full, new allocations for said block size may take up blocks in the next non-empty pool of greater block size. There is no coalescing of smaller blocks since those take priority, though neither is there any splitting of larger blocks.
+    1. **Tradeoff:** The tradeoff for the above decisions is embedded in the user's preference for smaller block size allocation. Another tradeoff is that the latter decision increases internal fragmentation, and though we could split large blocks into smaller sub-blocks to mitigate this, that would incur an unnecessary computational and memory footprint.
 1. The memory allocator holds a pointer to the most recently used pool header.
     1. **Tradeoff:** There is no real tradeoff here since there is a negligible memory footprint for this. This is based off the assumption that memory allocations of similar size often happen repeatedly in succession, meaning we don't always have to perform an O(log(b)) search through pool headers to find the relevant pool on pool_alloc() call, instead maintaining a reference to the most recently used pool, providing us constant time access when used in succession.
 1. All headers, pools, and blocks are aligned in memory according to the size of memory addresses.
@@ -64,13 +81,13 @@ N = total number of blocks (up to 8190)
 
 Normal init: O(b + N)
 
-*With lazy init: O(b)*
+*With lazy init (not implemented): O(b)*
 
 **Space:**
 
 Normal: O(b + N)
 
-*With lazy init: O(b)*
+*With lazy init (not implemented): O(b)*
 
 <ins>`void* pool_alloc(size_t n)`</ins>
 
@@ -96,9 +113,9 @@ Average Case: O(b)
 
 ### Additional Future Optimizations
 1. Populate block headers lazily as memory becomes allocated rather than all at once during initialization.
-    1. This would lower initialization complexity to O(b) in both time and space. (See branch `lazy`)
+    1. This would lower initialization complexity to O(b) in both time and space. (branch `lazy`)
 1. External fragmentation between pools may be used to hold smaller size objects (e.g. leftover "dead" space after a 1024-byte pool before a subsequent 2048-byte pool may be split up into several 32-byte blocks).
-    1. Filling leftover external fragmentation exclusively with the smallest memory block size leads to the greatest minimization of external fragmentation while also keeping in line with the assumption that small block size allocations are more desirable. (See branch `fragment`)
+    1. Filling leftover external fragmentation exclusively with the smallest memory block size leads to the greatest minimization of external fragmentation while also keeping in line with the assumption that small block size allocations are more desirable. (branch `fragment`)
 1. Compact all the pools together, combining all the leftover space at the end of the heap.
-    1. This would get completely rid of external fragmentation, leaving one contiguous accumulated block of memory at the end of the heap to use however one wants. We initially chose not to do this to simplify pointer arithmetic for indexing into pools and their respective blocks. (See branch `compact`)
+    1. This would get completely rid of external fragmentation, leaving one contiguous accumulated block of memory at the end of the heap to use however one wants. We initially chose not to do this to simplify pointer arithmetic for indexing into pools and their respective blocks. (branch `compact`)
 

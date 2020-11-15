@@ -4,7 +4,7 @@
  * Three assumptions about the user are made which influence the design of the block pool memory allocator.
  * 1. The user prefers smaller block size allocation and therefore allocates memory for such objects more often.
  * 2. Memory allocations of the similar type/size often happen repeatedly in succession.
- * 3. The user values minimized fragmentation and exceedingly low resource use (memory & computational footprint).
+ * 3. The user primarily values exceedingly low resource use (i.e. memory & computational footprint) followed by minimized fragmentation.
  * 
  * High level design decisions:
  * 1. The heap itself can and should be used to store state.
