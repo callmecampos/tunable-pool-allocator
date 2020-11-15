@@ -102,3 +102,5 @@ add_subdirectory(tests)
 # Unit tests
 enable_testing()
 add_test(NAME check_pool_alloc COMMAND check_pool_alloc)
+add_test(NAME runtime_pool_init COMMAND runtime_pool_init)
+add_test(NAME runtime_pool_alloc COMMAND runtime_pool_alloc)

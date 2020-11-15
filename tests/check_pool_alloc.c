@@ -1,3 +1,9 @@
+/**
+ * Comprehensive tunable block pool allocator test cases.
+ *
+ * Written by Felipe Campos, 11/12/2020.
+ */
+
 #include <check.h>
 #include <config.h>
 #include <stdbool.h>
@@ -5,24 +11,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "pool_alloc_tests.h"
 #include "../src/pool_alloc.h"
 
-// ========= VARIABLES & FUNCTION DECLARATIONS ==========
-
-#ifdef linux
-#define ck_assert_ptr_null(a) ((a) == NULL)
-#define ck_assert_ptr_nonnull(a) ((a) != NULL)
-#endif
-
-static uint8_t* fill_pool(size_t n);
-int pool_size_bytes(size_t num_pools);
-
-size_t block_sizes[] = {1, 2, 3, 4, 5, 6, 7, 8,
-                        9, 10, 11, 12, 13, 14, 15, 16,
-                        17, 18, 19, 20, 21, 22, 23, 24, 25,
-                        32, 64, 128, 256, 1024, 2048, 4096, 8192, 16384, 32768};
-
-// ================= INITIALIZATION =====================
+// ================= INITIALIZATION TESTS =====================
 
 /**
  * Basic initialization.
@@ -118,7 +110,7 @@ START_TEST(bad_size_input_init)
 }
 END_TEST
 
-// ================= ALLOCATION & FREEING =====================
+// ================= ALLOCATION & FREEING TESTS =====================
 
 /**
  * Checking that each of our allocated blocks in a given pool are equidistant by the right amount.
@@ -200,6 +192,13 @@ START_TEST(alloc_value)
     *num32 = 10000;
 
     ck_assert(*num8a == 10 && *num8b == 100 && *num16 == 1000 && *num32 == 10000);
+
+    pool_free(num8a);
+    pool_free(num8b);
+    pool_free(num16);
+    pool_free(num32);
+
+    ck_assert(*num8a != 10 && *num8b != 100 && *num16 != 1000 && *num32 != 10000);
 }
 END_TEST
 
@@ -618,11 +617,11 @@ Suite* pool_alloc_suite(void)
     suite_add_tcase(s, tc_valid);
 
     tc_overflow = tcase_create("Fill and overflow allocation.");
-    tcase_add_loop_test(tc_valid, alloc_fill_pool_blocks, 0, 34);
-    tcase_add_loop_test(tc_valid, alloc_pool_check, 1, MAX_NUM_POOLS + 1);
-    tcase_add_loop_test(tc_valid, alloc_overflow_pool_check, 1, MAX_NUM_POOLS + 1);
-    tcase_add_test(tc_valid, alloc_overflow_pool_mix);
-    tcase_add_test(tc_valid, alloc_backwards_overflow);
+    tcase_add_loop_test(tc_overflow, alloc_fill_pool_blocks, 0, 34);
+    tcase_add_loop_test(tc_overflow, alloc_pool_check, 1, MAX_NUM_POOLS + 1);
+    tcase_add_loop_test(tc_overflow, alloc_overflow_pool_check, 1, MAX_NUM_POOLS + 1);
+    tcase_add_test(tc_overflow, alloc_overflow_pool_mix);
+    tcase_add_test(tc_overflow, alloc_backwards_overflow);
     suite_add_tcase(s, tc_overflow);
 
     tc_varying = tcase_create("Varying size allocation.");
@@ -633,28 +632,6 @@ Suite* pool_alloc_suite(void)
     return s;
 }
 
-// ============= HELPER FUNCTIONS =================
-
-static uint8_t* fill_pool(size_t n)
-{
-    uint8_t* last_ptr = NULL;
-    while (true)
-    {
-        uint8_t* ptr = pool_alloc(n);
-        if (ptr == NULL)
-        {
-            break;
-        }
-        last_ptr = ptr;
-    }
-
-    return last_ptr;
-}
-
-int pool_size_bytes(size_t num_pools)
-{
-    return aligned((HEAP_SIZE_BYTES / num_pools) - sizeof(pool_header_t), 8);
-}
 
 // =============== RUN TEST SUITES ================
 

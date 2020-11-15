@@ -13,7 +13,7 @@
  *        may take up blocks in the next non-empty pool of greater block size.
  *     b. There is no coalescing of smaller blocks since those take priority,
  *        though neither is there any splitting of larger blocks.
- * 3. At the beginning of the heap, we hold 16-byte headers identifying pool block size and pointing to first
+ * 3. At the beginning of the heap, we hold 24-byte headers identifying pool block size and pointing to first
  * available free block in that pool (NULL if no free blocks are available).
  * 4. There is no header/metadata overhead for allocated blocks, we can simply store a free list where each
  * free block holds a pointer to the next free block. This pointer is simply overwritten when the block is allocated,
@@ -35,6 +35,9 @@
 
 #define MAX_NUM_POOLS 64
 #define HEAP_SIZE_BYTES 65536
+#define POOL_CACHE true
+#define LAZY_INIT true
+#define BINARY_SEARCH true
 
 /**
  * Header struct occupying a freed block, pointing to the next
@@ -51,11 +54,12 @@ typedef struct block_header
  * Header struct defining a pool size and pointing to
  * the next free block in that pool (NULL if none available).
  * 
- * Note: 16 byte struct assuming 8-byte addressing (8-byte on 32-bit, etc.)
+ * Note: 24 byte struct assuming 8-byte addressing (12-byte on 32-bit, etc.)
  */
 typedef struct pool_header
 {
     size_t block_size;
+    uint16_t num_initialized; // used for lazy init
     block_header_t* next_free;
 } pool_header_t;
 
@@ -91,6 +95,8 @@ void pool_free(void* ptr);
 
 // ================ HELPER FUNCTIONS ==================
 
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 /**
  * Gets the pool header corresponding to the ith block size.
  */
@@ -107,10 +113,19 @@ static int get_pool_index(pool_header_t* pool);
 static pool_header_t* create_pool_header(size_t block_size, int i);
 
 /**
- * Populate every block in the given pool with a block header.
- * Returns the last block visited in the pool.
+ * Lazily generates a free list by populating blocks in the given pool's free list on each pool_alloc() call.
+ * 
+ * Allows for O(N) initialization rather than O(N + M) (N = number of pools, M = total number of blocks)
+ * since we don't have to pre-emptively initialize the entire free list for every single block.
  */
-static block_header_t* populate_block_headers(pool_header_t* pool);
+static void lazy_populate_block_header(pool_header_t* pool);
+
+/**
+ * Generates a complete free list by populating every block inthe given pool with a block header.
+ * 
+ * Runs in linear time w.r.t. the number of blocks in a given pool.
+ */
+static void populate_block_headers(pool_header_t* pool);
 
 /**
  * Binary search throuogh the pool headers to find the relevant pool.
@@ -127,7 +142,7 @@ static pool_header_t* find_pool_from_size(size_t n);
 static pool_header_t* find_pool_from_pointer(void* ptr);
 
 /**
- * "Overloaded" aligned function, but specific to a pool allocator instance since it uses word_size.
+ * "Overloaded" aligned function, but specific to a pool allocator instance since it uses byte_align.
  */
 size_t align(size_t n);
 

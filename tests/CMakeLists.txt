@@ -14,5 +14,19 @@ set(TEST_SOURCES
   check_pool_alloc.c
 )
 
+set(RUNTIME_INIT_SOURCES
+  runtime_pool_init.c
+)
+
+set(RUNTIME_ALLOC_SOURCES
+  runtime_pool_alloc.c
+)
+
 add_executable(check_pool_alloc ${TEST_SOURCES})
 target_link_libraries(check_pool_alloc poolalloc ${CHECK_LIBRARIES})
+
+add_executable(runtime_pool_init ${RUNTIME_INIT_SOURCES})
+target_link_libraries(runtime_pool_init poolalloc ${CHECK_LIBRARIES})
+
+add_executable(runtime_pool_alloc ${RUNTIME_ALLOC_SOURCES})
+target_link_libraries(runtime_pool_alloc poolalloc ${CHECK_LIBRARIES})

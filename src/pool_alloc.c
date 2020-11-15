@@ -57,9 +57,12 @@ bool pool_init(const size_t* block_sizes, size_t block_size_count)
             return false;
         }
 
-        // Populate every free block in the pool with a block header
-        // (which get overwritten on allocation)
-        populate_block_headers(pool);
+        if (!LAZY_INIT)
+        {
+            // Populate every free block in the pool with a block header
+            // (which get overwritten on allocation)
+            populate_block_headers(pool);
+        }
 
         last_block_size = block_size;
     }
@@ -82,6 +85,12 @@ void* pool_alloc(size_t n)
     if (pool == NULL)
     {
         return NULL;
+    }
+
+    if (LAZY_INIT)
+    {
+        // Lazily initialize any remaining block headers in this pool
+        lazy_populate_block_header(pool);
     }
 
     // Pop off an available free block in O(1) time
@@ -113,13 +122,16 @@ void pool_free(void* ptr)
 
 // ============= HELPER FUNCTIONS =============
 
-static pool_header_t* create_pool_header(size_t block_size, int i)
+static inline pool_header_t* create_pool_header(size_t block_size, int i)
 {
     pool_header_t* pool = get_pool(i);
     pool->block_size = block_size;
+    pool->num_initialized = 1;
 
     byte_ptr_t first_free = base_addr + (i * pool_size);
-    int num_blocks = pool_size / (align(block_size));
+
+    // Check to make sure we can accomodate at least 1 block in this pool.
+    // Otherwise return null and fail initialization.
     if (first_free + align(block_size) > end_addr)
     {
         return NULL;
@@ -130,7 +142,27 @@ static pool_header_t* create_pool_header(size_t block_size, int i)
     return pool;
 }
 
-static block_header_t* populate_block_headers(pool_header_t* pool)
+static inline void lazy_populate_block_header(pool_header_t* pool)
+{
+    size_t aligned_block_size = align(pool->block_size);
+    int pool_offset = get_pool_index(pool) * pool_size;
+
+    // Account for the final pool not being able to accomodate every block in some cases
+    int pool_bound = MIN(HEAP_SIZE_BYTES - num_pools * sizeof(pool_header_t), pool_offset + pool_size);
+    int num_blocks = (pool_bound - pool_offset) / aligned_block_size;
+    if (pool->num_initialized < num_blocks)
+    {
+        byte_ptr_t pool_base = base_addr + pool_offset;
+        byte_ptr_t to_init_addr = pool_base + aligned_block_size * pool->num_initialized;
+        block_header_t* prev_init = (block_header_t*)(to_init_addr - aligned_block_size);
+        block_header_t* to_init = (block_header_t*)to_init_addr;
+        prev_init->next = to_init;
+
+        pool->num_initialized += 1;
+    }
+}
+
+static inline void populate_block_headers(pool_header_t* pool)
 {
     size_t aligned_block_size = align(pool->block_size);
     byte_ptr_t first_free = (byte_ptr_t)pool->next_free;
@@ -154,24 +186,22 @@ static block_header_t* populate_block_headers(pool_header_t* pool)
         }
         last = bptr;
     }
-
-    return last;
 }
 
-static pool_header_t* find_pool_from_size(size_t n)
+static inline pool_header_t* find_pool_from_size(size_t n)
 {
     int start = 0, end = num_pools - 1;
     int middle = (start + end) / 2;
     pool_header_t* pool = NULL;
 
     // Check cache for last used pool
-    if (n == last_used_pool->block_size)
+    if (POOL_CACHE && n == last_used_pool->block_size)
     {
         pool = last_used_pool;
         middle = get_pool_index(pool);
     }
     // else binary search through pool headers
-    else
+    else if (BINARY_SEARCH)
     {
         while (start <= end)
         {
@@ -192,6 +222,21 @@ static pool_header_t* find_pool_from_size(size_t n)
             middle = (start + end) / 2;
         }
     }
+    // Naive linear search through pool headers
+    else
+    {
+        for (middle = 0; middle < num_pools; middle++)
+        {
+            pool = get_pool(middle);
+            if (pool->block_size >= n)
+            {
+                break;
+            }
+        }
+
+        middle = MIN(middle, num_pools - 1);
+    }
+    
 
     // Check out larger block size pools if the current has no free space
     pool = get_pool(middle);
@@ -210,7 +255,7 @@ static pool_header_t* find_pool_from_size(size_t n)
     return pool;
 }
 
-static pool_header_t* find_pool_from_pointer(void* ptr)
+static inline pool_header_t* find_pool_from_pointer(void* ptr)
 {
     int pool_index = (((byte_ptr_t)ptr) - base_addr) / pool_size;
     if (pool_index >= 0 && pool_index < num_pools)
@@ -226,7 +271,7 @@ static inline pool_header_t* get_pool(int i)
     return (pool_header_t*)(g_pool_heap + (i * sizeof(pool_header_t)));
 }
 
-static int get_pool_index(pool_header_t* pool)
+static inline int get_pool_index(pool_header_t* pool)
 {
     return ((uintptr_t)(((byte_ptr_t)pool) - g_pool_heap)) / sizeof(pool_header_t);
 }
