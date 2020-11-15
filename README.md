@@ -1,6 +1,6 @@
 # Zipline Take-Home Challenge: Tunable Block Pool Allocator
 
-## How to compile and run: (on Unix-based OS, see tests/Makefiles for Windows-specific instructions)
+## How to compile and run: (on Unix-based OS, see [tests/CMakeLists.txt](tests/CMakeLists.txt) if on Windows)
 
 Using Autotools:
 ```
@@ -32,49 +32,69 @@ Three assumptions about the user are made which influence the design of this blo
 
 ### Design decisions and tradeoffs:
 1. The heap itself can and should be used to store state.
-    1. Tradeoff: This ensures simplicity and elegance in the implementation. We do sacrifice a small memory footprint in the process, though it's negligible (~6% of the heap size in the absolute worst case).
-1. The heap is subdivided evenly by number of pools, giving smaller objects more blocks to allocate into. Additionally, if a smaller block pool is full, new allocations for said block size may take up blocks in the next non-empty pool of greater block size.
-    1. Tradeoff: The tradeoff for these two logistical decisions is embedded in the user's preference for smaller block size allocation. Another tradeoff is that the latter decision increases internal fragmentation, and though we could split large blocks into smaller sub-blocks to mitigate this, that would incur an unnecessary computational and memory footprint.
+    1. **Tradeoff:** This ensures simplicity of the implementation. We do sacrifice a small memory footprint in the process, though it's negligible relative to the entire heap (e.g. for 64 pools, only ~1% of the total heap is used for pool headers situated at the start of the heap pointing to free blocks in their respective pools).
+1. The heap is subdivided evenly by number of pools, giving smaller objects more blocks to allocate into. Additionally, if a smaller block pool is full, new allocations for said block size may take up blocks in the next non-empty pool of greater block size. There is no coalescing of smaller blocks since those take priority, though neither is there any splitting of larger blocks.
+    1. **Tradeoff:** The tradeoff for these two logistical decisions is embedded in the user's preference for smaller block size allocation. Another tradeoff is that the latter decision increases internal fragmentation, and though we could split large blocks into smaller sub-blocks to mitigate this, that would incur an unnecessary computational and memory footprint.
 1. The memory allocator holds a pointer to the most recently used pool header.
-    1. Tradeoff: There is no real tradeoff here since there is a negligible memory footprint for this. This is based off the assumption that memory allocations of similar size often happen repeatedly in succession, meaning we don't always have to perform an O(log(b)) search through pool headers to find the relevant pool on pool_alloc() call, instead maintaining a reference to the most recently used pool, providing us constant time access when used in succession.
-1. All headers, pools, and blocks are 8-byte aligned (for a 64-bit processor).
-    1. Tradeoff: Want to make sure memory accesses are as efficient as possible, so are willing to tradeoff some internal fragmentation caused by the occasional unaligned allocation size in exchange for efficiency.
-1. pool_free() has undefined behavior when passed a pointer is not currently allocated by pool_alloc() (whether because it wasn't allocated in the first place or it was already freed).
-    1. Tradeoff: Though we have the ability to detect unaligned pointers and invalid free calls, we chose to keep in line with how classical free functions operate to minimize computational and memory footprint to keep pool_free() a constant time operation.
-1. pool_init() is only called once per a process.
+    1. **Tradeoff:** There is no real tradeoff here since there is a negligible memory footprint for this. This is based off the assumption that memory allocations of similar size often happen repeatedly in succession, meaning we don't always have to perform an O(log(b)) search through pool headers to find the relevant pool on pool_alloc() call, instead maintaining a reference to the most recently used pool, providing us constant time access when used in succession.
+1. All headers, pools, and blocks are aligned in memory according to the size of memory addresses.
+    1. e.g. 2-byte aligned for a 16-bit processor, 4-byte aligned for a 32-bit processor, 8-byte aligned for a 64-bit processor, even 3-byte aligned on a 24-bit processor (if you can find one!).
+    1. **Tradeoff:** We want to make sure memory accesses are as efficient as possible, so are willing to tradeoff some internal fragmentation in exchange for efficiency by respecting the target CPU's memory access patterns. Additionally, this ensures that pools with block sizes smaller than memory address sizes can still hold block headers (which hold an address to the next free block in that pool) in each unallocated block.
+1. `pool_free()` has undefined behavior when passed a pointer is not currently allocated by pool_alloc() (whether because it wasn't allocated in the first place or it was already freed).
+    1. **Tradeoff:** Though we have the ability to detect unaligned pointers and invalid free calls, we chose to keep in line with how classical free functions operate to minimize computational and memory footprint to keep pool_free() a constant time operation.
+1. If the allocator cannot accomodate all pool sizes evenly divided among the heap during `pool_init()`, it will return false.
+1. `pool_init()` may only be called once per a process.
 
 ### Valid inputs:
-1. The block sizes array is passed in pre-sorted smallest to largest, has no duplicate elements, and its length does not exceed 248.
-    1. Tradeoff: This places burden on the user to provide a specifically formatted block size list. However, with this assumption was made to accomodate O(log(b)) search for pool headers without having to sort the block size array during initialization, which would incur an additional O(b * log(b)) computational cost.
-    1. The smallest x for which (2^16 - 16\*x) / x - x > 0 is x = 248.125.
-    1. The largest block size count at which a valid set of block sizes can exist is therefore {1, 2, 3, 4, 5, ..., 246, 247, 248} which, 8-byte aligned, becomes {8, 8, 8, 8, 8, ..., 248, 248, 248}).
+1. The block sizes array is passed in pre-sorted smallest to largest, has no duplicate elements, and its length does not exceed 64.
+    1. This places burden on the user to provide a specifically formatted block size list. However, this assumption was made to accomodate O(log(b)) search for pool headers on an allocation request without having to sort the block size array during initialization, which would incur an additional O(b * log(b)) computational cost for initialization.
+    1. The even subdivision of the heap among pools in addition to the accumulated byte alignment makes for strange circumstances at larger pool numbers where, due to alignment, there lies no additional space for later pools to allocate even a single block within the heap without overflowing. So, to simplify, we chose to make 64 blocks the maximum amount.
+    1. The largest block size count at which a valid set of block sizes can exist is therefore {1, 2, 3, 4, 5, ..., 62, 63, 64} which, 8-byte aligned, becomes {8, 8, 8, 8, 8, ..., 64, 64, 64}).
 
 ## Time and Space Complexity Analysis
 
 ```
-b = number of pools (up to 248)
+b = number of pools (up to 64)
 N = total number of blocks (up to 8190)
 ```
 
-`pool_init`
+<ins>`bool pool_init(const size_t* block_sizes, size_t block_size_count)`</ins>
 
-Time - O(b + N)
+**Time:**
 
-Space - O(b + N)
+Normal init: O(b + N)
 
-`pool_alloc`:
+*With lazy init: O(b)*
 
-Time - Best Case (Cache Hit): O(1), Average Case (Binary Search): O(log(b)), Worst Case (All Pools Full): O(b)
+**Space:**
 
-Space - Best Case (Cache Hit): O(1), Average Case: O(b)
+Normal: O(b + N)
 
-`pool_free`:
+*With lazy init: O(b)*
 
-Time - O(1)
+<ins>`void* pool_alloc(size_t n)`</ins>
 
-Space - O(1)
+**Time:**
 
-### Further Future Optimizations
+Best Case (Cache Hit): O(1)
+
+Average Case (Binary Search): O(log(b))
+
+Worst Case (All Pools Full): O(b)
+
+**Space:**
+
+Best Case (Cache Hit): O(1)
+
+Average Case: O(b)
+
+<ins>`void pool_free(void* ptr)`</ins>
+
+**Time:** O(1)
+
+**Space:** O(1)
+
+### Additional Future Optimizations
 1. Populate block headers lazily as memory becomes allocated rather than all at once during initialization.
     1. This would lower initialization complexity to O(b) in both time and space. (See branch `lazy`)
 1. External fragmentation between pools may be used to hold smaller size objects (e.g. leftover "dead" space after a 1024-byte pool before a subsequent 2048-byte pool may be split up into several 32-byte blocks).

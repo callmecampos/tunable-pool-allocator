@@ -9,7 +9,7 @@
 
 // ========= VARIABLES & FUNCTION DECLARATIONS ==========
 
-static uint8_t *fill_pool(size_t n);
+static uint8_t* fill_pool(size_t n);
 int pool_size_bytes(size_t num_pools);
 
 size_t block_sizes[] = {1, 2, 3, 4, 5, 6, 7, 8,
@@ -128,14 +128,14 @@ START_TEST(alloc_check_relative_block)
 
     int pool_size = pool_size_bytes(size);
 
-    uint8_t *last_ptr;
+    uint8_t* last_ptr;
     for (int i = 0; i < size; i++)
     {
-        last_ptr = (uint8_t *)pool_alloc(arr[i]);
+        last_ptr = (uint8_t*)pool_alloc(arr[i]);
         ck_assert_ptr_nonnull(last_ptr);
         for (int j = 0; j < pool_size / align(arr[i]) - 1; j++)
         {
-            uint8_t *new_ptr = (uint8_t *)pool_alloc(arr[i]);
+            uint8_t* new_ptr = (uint8_t*)pool_alloc(arr[i]);
             ck_assert_ptr_nonnull(new_ptr);
             ck_assert_msg(new_ptr - last_ptr == align(arr[i]), "Expecting %zu found %ld", align(arr[i]), new_ptr - last_ptr);
             last_ptr = new_ptr;
@@ -157,11 +157,11 @@ START_TEST(alloc_check_relative_pool)
 
     int pool_size = pool_size_bytes(size);
 
-    uint8_t *last_ptr = pool_alloc(arr[0]);
+    uint8_t* last_ptr = pool_alloc(arr[0]);
     ck_assert_ptr_nonnull(last_ptr);
     for (int i = 1; i < size; i++)
     {
-        uint8_t *new_ptr = pool_alloc(arr[i]);
+        uint8_t* new_ptr = pool_alloc(arr[i]);
         ck_assert_ptr_nonnull(new_ptr);
         ck_assert_msg(new_ptr - last_ptr == pool_size, "Expecting %d found %ld", pool_size, new_ptr - last_ptr);
         last_ptr = new_ptr;
@@ -178,19 +178,19 @@ START_TEST(alloc_value)
     bool pool = pool_init(arr, 3);
     ck_assert(pool);
 
-    uint8_t *num8a = pool_alloc(sizeof(uint8_t));
+    uint8_t* num8a = pool_alloc(sizeof(uint8_t));
     ck_assert_ptr_nonnull(num8a);
     *num8a = 10;
 
-    uint8_t *num8b = pool_alloc(sizeof(uint8_t));
+    uint8_t* num8b = pool_alloc(sizeof(uint8_t));
     ck_assert_ptr_nonnull(num8b);
     *num8b = 100;
 
-    uint16_t *num16 = pool_alloc(sizeof(uint16_t));
+    uint16_t* num16 = pool_alloc(sizeof(uint16_t));
     ck_assert_ptr_nonnull(num16);
     *num16 = 1000;
 
-    uint32_t *num32 = pool_alloc(sizeof(uint32_t));
+    uint32_t* num32 = pool_alloc(sizeof(uint32_t));
     ck_assert_ptr_nonnull(num32);
     *num32 = 10000;
 
@@ -209,20 +209,20 @@ START_TEST(alloc_and_free_mirror_short)
 
     ck_assert(pool);
 
-    int *p1 = pool_alloc(sizeof(int));
+    int* p1 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p1);
 
-    int *p2 = pool_alloc(sizeof(int));
+    int* p2 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p2);
 
     pool_free(p1);
     pool_free(p2);
 
-    int *p3 = pool_alloc(sizeof(int));
+    int* p3 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p3);
     ck_assert_ptr_eq(p3, p2);
 
-    int *p4 = pool_alloc(sizeof(int));
+    int* p4 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p4);
     ck_assert_ptr_eq(p4, p1);
 
@@ -243,22 +243,22 @@ START_TEST(alloc_and_free_chain_long)
     ck_assert(pool);
     int pool_size = pool_size_bytes(1);
 
-    int *p1 = pool_alloc(sizeof(int));
+    int* p1 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p1);
 
-    int *p2 = pool_alloc(sizeof(int));
+    int* p2 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p2);
 
-    int *p3 = pool_alloc(sizeof(int));
+    int* p3 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p3);
 
-    int *p4 = pool_alloc(sizeof(int));
+    int* p4 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p4);
 
-    int *p5 = pool_alloc(sizeof(int));
+    int* p5 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p5);
 
-    int *p6 = pool_alloc(sizeof(int));
+    int* p6 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p6);
 
     pool_free(p1);
@@ -268,27 +268,27 @@ START_TEST(alloc_and_free_chain_long)
     pool_free(p2);
     pool_free(p5);
 
-    int *p7 = pool_alloc(sizeof(int));
+    int* p7 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p7);
     ck_assert_ptr_eq(p7, p5);
 
-    int *p8 = pool_alloc(sizeof(int));
+    int* p8 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p8);
     ck_assert_ptr_eq(p8, p2);
 
-    int *p9 = pool_alloc(sizeof(int));
+    int* p9 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p9);
     ck_assert_ptr_eq(p9, p3);
 
-    int *p10 = pool_alloc(sizeof(int));
+    int* p10 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p10);
     ck_assert_ptr_eq(p10, p6);
 
-    int *p11 = pool_alloc(sizeof(int));
+    int* p11 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p11);
     ck_assert_ptr_eq(p11, p4);
 
-    int *p12 = pool_alloc(sizeof(int));
+    int* p12 = pool_alloc(sizeof(int));
     ck_assert_ptr_nonnull(p12);
     ck_assert_ptr_eq(p11, p3);
 }
@@ -311,7 +311,7 @@ START_TEST(alloc_fill_pool_blocks)
     int pool_size = pool_size_bytes(size);
 
     // Allocate all available blocks
-    uint8_t *last_alloc = fill_pool(arr[0]);
+    uint8_t* last_alloc = fill_pool(arr[0]);
     ck_assert_ptr_nonnull(last_alloc);
 
     // Can't allocate new memory there
@@ -350,7 +350,7 @@ START_TEST(alloc_pool_check)
     for (int b = size - 1; b >= 0; b--)
     {
         // Allocate all available blocks
-        uint8_t *last_alloc = fill_pool(arr[b]);
+        uint8_t* last_alloc = fill_pool(arr[b]);
         ck_assert_ptr_nonnull(last_alloc);
 
         // Can't allocate new memory there
@@ -393,7 +393,7 @@ START_TEST(alloc_overflow_pool_check)
     int pool_size = pool_size_bytes(size);
 
     // Fill up all the blocks
-    uint8_t *ptr = NULL;
+    uint8_t* ptr = NULL;
     do
     {
         ptr = pool_alloc(arr[0]);
@@ -437,7 +437,7 @@ START_TEST(alloc_overflow_pool_mix)
     }
 
     // Allocate the last 4096-byte block
-    uint8_t *last_ptr = pool_alloc(arr[1]);
+    uint8_t* last_ptr = pool_alloc(arr[1]);
     ck_assert_ptr_nonnull(last_ptr);
 
     // Can't allocate smaller memory anywhere
@@ -529,7 +529,7 @@ START_TEST(alloc_varied_sizes)
     // Making sure I can allocate memory of any size and that freeing works
     for (int i = 1; i <= 4096; i++)
     {
-        uint8_t *ptr = pool_alloc(i);
+        uint8_t* ptr = pool_alloc(i);
         ck_assert_ptr_nonnull(ptr);
         pool_free(ptr);
     }
@@ -562,7 +562,7 @@ START_TEST(alloc_all_sizes)
 
     for (int i = 1; i < pool_size_bytes(1); i++)
     {
-        uint8_t *ptr = pool_alloc(i);
+        uint8_t* ptr = pool_alloc(i);
         ck_assert_msg(ptr != NULL, "for size %d", i);
         pool_free(ptr);
     }
@@ -571,11 +571,11 @@ END_TEST
 
 // ================ TESTING SUITE DEFINITIONS ==================
 
-Suite *pool_init_suite(void)
+Suite* pool_init_suite(void)
 {
-    Suite *s;
-    TCase *tc_valid;
-    TCase *tc_failed;
+    Suite* s;
+    TCase* tc_valid;
+    TCase* tc_failed;
 
     s = suite_create("PoolInit");
 
@@ -595,12 +595,12 @@ Suite *pool_init_suite(void)
     return s;
 }
 
-Suite *pool_alloc_suite(void)
+Suite* pool_alloc_suite(void)
 {
-    Suite *s;
-    TCase *tc_valid;
-    TCase *tc_overflow;
-    TCase *tc_varying;
+    Suite* s;
+    TCase* tc_valid;
+    TCase* tc_overflow;
+    TCase* tc_varying;
 
     s = suite_create("PoolAlloc");
 
@@ -629,12 +629,12 @@ Suite *pool_alloc_suite(void)
 
 // ============= HELPER FUNCTIONS =================
 
-static uint8_t *fill_pool(size_t n)
+static uint8_t* fill_pool(size_t n)
 {
-    uint8_t *last_ptr = NULL;
+    uint8_t* last_ptr = NULL;
     while (true)
     {
-        uint8_t *ptr = pool_alloc(n);
+        uint8_t* ptr = pool_alloc(n);
         if (ptr == NULL)
         {
             break;
@@ -655,8 +655,8 @@ int pool_size_bytes(size_t num_pools)
 int main(void)
 {
     int number_failed;
-    Suite *s;
-    SRunner *sr;
+    Suite* s;
+    SRunner* sr;
 
     s = pool_init_suite();
     sr = srunner_create(s);

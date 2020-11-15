@@ -12,17 +12,17 @@
 
 static uint8_t g_pool_heap[65536];
 
-static uint8_t *base_addr;
-static uint8_t *end_addr;
+static uint8_t* base_addr;
+static uint8_t* end_addr;
 static int num_pools;
 static int pool_size;
 static int byte_align;
 static bool initialized = false;
-static pool_header_t *last_used_pool;
+static pool_header_t* last_used_pool;
 
 // ============ TUNABLE BLOCK POOL ALLOCATOR ===============
 
-bool pool_init(const size_t *block_sizes, size_t block_size_count)
+bool pool_init(const size_t* block_sizes, size_t block_size_count)
 {
     // Make sure we have a valid number of block sizes
     if (initialized ||
@@ -32,7 +32,7 @@ bool pool_init(const size_t *block_sizes, size_t block_size_count)
     }
 
     // Initialize static global variables
-    byte_align = sizeof(void *);
+    byte_align = sizeof(void*);
     num_pools = (int)block_size_count;
     pool_size = align((sizeof(g_pool_heap) / num_pools) - sizeof(pool_header_t));
     base_addr = g_pool_heap + (num_pools * sizeof(pool_header_t));
@@ -51,7 +51,7 @@ bool pool_init(const size_t *block_sizes, size_t block_size_count)
 
         // Create a pool header for this block size
         // and point it to the pool's first free block
-        pool_header_t *pool = create_pool_header(block_size, i);
+        pool_header_t* pool = create_pool_header(block_size, i);
         if (pool == NULL)
         {
             return false;
@@ -70,7 +70,7 @@ bool pool_init(const size_t *block_sizes, size_t block_size_count)
     return true;
 }
 
-void *pool_alloc(size_t n)
+void* pool_alloc(size_t n)
 {
     if (!initialized || n == 0)
     {
@@ -78,44 +78,44 @@ void *pool_alloc(size_t n)
     }
 
     // Find the corresponding pool to allocate memory
-    pool_header_t *pool = find_pool_from_size(n);
+    pool_header_t* pool = find_pool_from_size(n);
     if (pool == NULL)
     {
         return NULL;
     }
 
     // Pop off an available free block in O(1) time
-    block_header_t *free_block = pool->next_free;
+    block_header_t* free_block = pool->next_free;
 
     // Update the pool's free block
     pool->next_free = free_block->next;
 
-    return (void *)free_block;
+    return (void*)free_block;
 }
 
-void pool_free(void *ptr)
+void pool_free(void* ptr)
 {
     if (!initialized)
     {
         return;
     }
 
-    pool_header_t *pool = find_pool_from_pointer(ptr);
+    pool_header_t* pool = find_pool_from_pointer(ptr);
     if (pool == NULL)
     {
         return;
     }
 
-    block_header_t *bptr = ptr;
+    block_header_t* bptr = ptr;
     bptr->next = pool->next_free;
     pool->next_free = bptr;
 }
 
 // ============= HELPER FUNCTIONS =============
 
-static pool_header_t *create_pool_header(size_t block_size, int i)
+static pool_header_t* create_pool_header(size_t block_size, int i)
 {
-    pool_header_t *pool = get_pool(i);
+    pool_header_t* pool = get_pool(i);
     pool->block_size = block_size;
 
     byte_ptr_t first_free = base_addr + (i * pool_size);
@@ -125,17 +125,17 @@ static pool_header_t *create_pool_header(size_t block_size, int i)
         return NULL;
     }
 
-    pool->next_free = (block_header_t *)first_free;
+    pool->next_free = (block_header_t*)first_free;
 
     return pool;
 }
 
-static block_header_t *populate_block_headers(pool_header_t *pool)
+static block_header_t* populate_block_headers(pool_header_t* pool)
 {
     size_t aligned_block_size = align(pool->block_size);
     byte_ptr_t first_free = (byte_ptr_t)pool->next_free;
 
-    block_header_t *last = NULL;
+    block_header_t* last = NULL;
     for (size_t offset = 0;
          offset + aligned_block_size <= pool_size;
          offset += aligned_block_size)
@@ -145,7 +145,7 @@ static block_header_t *populate_block_headers(pool_header_t *pool)
             continue;
         }
 
-        block_header_t *bptr = (block_header_t *)(first_free + offset);
+        block_header_t* bptr = (block_header_t*)(first_free + offset);
         if (last != NULL)
         {
             last->next = bptr;
@@ -161,11 +161,11 @@ static block_header_t *populate_block_headers(pool_header_t *pool)
     return last;
 }
 
-static pool_header_t *find_pool_from_size(size_t n)
+static pool_header_t* find_pool_from_size(size_t n)
 {
     int start = 0, end = num_pools - 1;
     int middle = (start + end) / 2;
-    pool_header_t *pool = NULL;
+    pool_header_t* pool = NULL;
 
     // Check cache for last used pool
     if (n == last_used_pool->block_size)
@@ -213,7 +213,7 @@ static pool_header_t *find_pool_from_size(size_t n)
     return pool;
 }
 
-static pool_header_t *find_pool_from_pointer(void *ptr)
+static pool_header_t* find_pool_from_pointer(void* ptr)
 {
     int pool_index = (((byte_ptr_t)ptr) - base_addr) / pool_size;
     if (pool_index >= 0 && pool_index < num_pools)
@@ -224,12 +224,12 @@ static pool_header_t *find_pool_from_pointer(void *ptr)
     return NULL;
 }
 
-static inline pool_header_t *get_pool(int i)
+static inline pool_header_t* get_pool(int i)
 {
-    return (pool_header_t *)(g_pool_heap + (i * sizeof(pool_header_t)));
+    return (pool_header_t*)(g_pool_heap + (i * sizeof(pool_header_t)));
 }
 
-static int get_pool_index(pool_header_t *pool)
+static int get_pool_index(pool_header_t* pool)
 {
     return ((uintptr_t)(((byte_ptr_t)pool) - g_pool_heap)) / sizeof(pool_header_t);
 }
@@ -264,7 +264,7 @@ void memoryDump(uint8_t mask)
 
         for (int i = 0; i < num_pools; i++)
         {
-            pool_header_t *pool = get_pool(i);
+            pool_header_t* pool = get_pool(i);
             printf("[Pool %d]\nBlock Size (Aligned): %zu (%zu)\nNumber of Blocks: %ld\nNext Free: %p\n\n",
                    i, pool->block_size, align(pool->block_size), pool_size / align(pool->block_size), pool->next_free);
         }

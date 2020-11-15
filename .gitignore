@@ -1,6 +1,4 @@
 # Custom
-src/pool_alloc
-test/pool_alloc_tests
 .vscode
 
 # Prerequisites
