@@ -21,20 +21,20 @@
 #ifndef POOL_ALLOC_H
 #define POOL_ALLOC_H
 
-#include <stdio.h>
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
 
 // =================== DEFINITIONS =====================
 
-#define MAX_NUM_POOLS 248
+#define MAX_NUM_POOLS 64
 #define HEAP_SIZE_BYTES 65536
 
 /**
  * Header struct occupying a freed block, pointing to the next
  * free block in the pool (may be NULL if at end of free list).
  * 
- * 8 byte struct assuming 8-byte addressing.
+ * Note: 8 byte struct assuming 8-byte addressing.
  */
 typedef struct block_header
 {
@@ -50,8 +50,10 @@ typedef struct block_header
 typedef struct pool_header
 {
     size_t block_size;
-    block_header_t *next_free; // don't need to store an entire 8 byte address, only need 2 and compute from base address
+    block_header_t *next_free;
 } pool_header_t;
+
+typedef uint8_t *byte_ptr_t;
 
 // ============ TUNABLE BLOCK POOL ALLOCATOR ===============
 
@@ -107,7 +109,7 @@ static block_header_t *populate_block_headers(pool_header_t *pool);
 /**
  * Binary search throuogh the pool headers to find the relevant pool.
  * 
- * Runs in O(log(N)) for N pools e.g. worst case 8 loops for 256 pools.
+ * Runs in O(log(N)) for N pools e.g. worst case 6 loops for 64 pools.
  */
 static pool_header_t *find_pool_from_size(size_t n);
 
@@ -128,9 +130,10 @@ size_t align(size_t n);
  * 
  * Example (64-bit system): aligned(4) = 8; aligned(16) = 16; aligned(18) = 24;
  */
-inline size_t aligned(size_t n, size_t align)
-{
-    return (n + align - 1) & ~(align - 1);
-}
+size_t aligned(size_t n, size_t k);
+
+// ================ DEBUG UTILS ==================
+
+void memoryDump(uint8_t mask);
 
 #endif /* POOL_ALLOC_H */
